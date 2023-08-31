@@ -1,0 +1,182 @@
+# sanitized: kubeconfig removed
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  annotations:
+    workload.openshift.io/allowed: "management"
+  name: "open-cluster-management-agent"
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: klusterlet
+  namespace: "open-cluster-management-agent"
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: klusterlet
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "configmaps", "serviceaccounts"]
+  verbs: ["create", "get", "list", "update", "watch", "patch", "delete"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["create", "get", "list", "update", "watch", "patch"]
+- apiGroups: ["authorization.k8s.io"]
+  resources: ["subjectaccessreviews"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["create", "get", "list", "watch","delete"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["", "events.k8s.io"]
+  resources: ["events"]
+  verbs: ["create", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["create", "get", "list", "update", "watch", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings", "rolebindings"]
+  verbs: ["create", "get", "list", "update", "watch", "patch", "delete"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterroles", "roles"]
+  verbs: ["create", "get", "list", "update", "watch", "patch", "delete", "escalate", "bind"]
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["create", "get", "list", "update", "watch", "patch", "delete"]
+- apiGroups: ["operator.open-cluster-management.io"]
+  resources: ["klusterlets"]
+  verbs: ["get", "list", "watch", "update", "patch", "delete"]
+- apiGroups: ["operator.open-cluster-management.io"]
+  resources: ["klusterlets/status"]
+  verbs: ["update", "patch"]
+- apiGroups: ["work.open-cluster-management.io"]
+  resources: ["appliedmanifestworks"]
+  verbs: ["list", "update", "patch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: klusterlet-bootstrap-kubeconfig
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["bootstrap-hub-kubeconfig"]
+  verbs: ["get", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: open-cluster-management:klusterlet-admin-aggregate-clusterrole
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+rules:
+- apiGroups: ["operator.open-cluster-management.io"]
+  resources: ["klusterlets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: klusterlet
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: klusterlet
+subjects:
+- kind: ServiceAccount
+  name: klusterlet
+  namespace: "open-cluster-management-agent"
+
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: klusterlet
+  namespace: "open-cluster-management-agent"
+  labels:
+    app: klusterlet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: klusterlet
+  template:
+    metadata:
+      annotations:
+        target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
+      labels:
+        app: klusterlet
+    spec:
+      serviceAccountName: klusterlet
+      tolerations:
+      - key: "node-role.kubernetes.io/infra"
+        value: ""
+        effect: "NoSchedule"
+        operator: "Exists"
+      containers:
+      - name: klusterlet
+        image: registry.redhat.io/multicluster-engine/registration-operator-rhel8@sha256:d37493951a0e41c959f88fd535a6a7a00ca488c8760c1a7351637aafdda80fbe
+        imagePullPolicy: IfNotPresent
+        args:
+          - "/registration-operator"
+          - "klusterlet"
+          - "--disable-leader-election"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            scheme: HTTPS
+            port: 8443
+          initialDelaySeconds: 2
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            scheme: HTTPS
+            port: 8443
+          initialDelaySeconds: 2
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 2Gi
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "bootstrap-hub-kubeconfig"
+  
+  namespace: "open-cluster-management-agent"
+  
+type: Opaque
+data:
+  kubeconfig: "base64-encoded-kubeconfig"
+  
+---
+apiVersion: operator.open-cluster-management.io/v1
+kind: Klusterlet
+metadata:
+  name: klusterlet
+spec:
+  deployOption:
+    mode: Default
+  registrationImagePullSpec: "registry.redhat.io/multicluster-engine/registration-rhel8@sha256:2ae51486b8712273eb800adaf2d6126801b34b9b40eab4dfcf4ddc165f7d4491"
+  workImagePullSpec: "registry.redhat.io/multicluster-engine/work-rhel8@sha256:c2f1b0e5cf0c1ee36776de6f6a017fae347e5143b1bc8301fd5b0fe35e725569"
+  clusterName: "spoke-rosa"
+  namespace: "open-cluster-management-agent"
+  nodePlacement:
+    tolerations:
+    - key: "node-role.kubernetes.io/infra"
+      value: ""
+      effect: "NoSchedule"
+      operator: "Exists"

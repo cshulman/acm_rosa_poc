@@ -1,0 +1,11 @@
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: spoke-rosa
+  labels:
+    name: spoke-rosa
+    cluster.open-cluster-management.io/clusterset: rosa-clusters # adds cluster to specified ManagedCluster
+    cloud: auto-detect
+    vendor: auto-detect
+spec:
+  hubAcceptsClient: true

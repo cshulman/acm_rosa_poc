@@ -1,4 +1,4 @@
-#INSTALL ACM 
+# INSTALL ACM 
 
 **Create ns, og & sub for ACM**
 ```oc create -f install/open-cluster-management-install.yaml```

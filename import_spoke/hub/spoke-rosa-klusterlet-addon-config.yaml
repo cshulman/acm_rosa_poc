@@ -1,0 +1,23 @@
+apiVersion: agent.open-cluster-management.io/v1
+kind: KlusterletAddonConfig
+metadata:
+  name: spoke-rosa
+  namespace: spoke-rosa
+spec:
+  clusterName: spoke-rosa
+  clusterNamespace: spoke-rosa
+  clusterLabels:
+    name: spoke-rosa
+    cloud: auto-detect
+    vendor: auto-detect
+    cluster.open-cluster-management.io/clusterset: rosa-clusters
+  applicationManager:
+    enabled: true
+  certPolicyController:
+    enabled: true
+  iamPolicyController:
+    enabled: true
+  policyController:
+    enabled: true
+  searchCollector:
+    enabled: true
